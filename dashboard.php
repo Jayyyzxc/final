@@ -17,14 +17,37 @@ if ($is_logged_in && isset($_SESSION['user']['role']) && $_SESSION['user']['role
     $is_super_admin = true;
 }
 
-// Get data from database using MySQLi
-$total_residents = getResidentCount();
-$total_households = getHouseholdCount();
-$upcoming_events_count = getUpcomingEventsCount();
-$age_distribution = getAgeDistribution();
-$gender_distribution = getGenderDistribution();
-$employment_status = getEmploymentStatus();
-$upcoming_events = getUpcomingEvents(5);
+// Check if user is barangay captain
+$is_captain = false;
+$captain_barangay_id = null;
+if ($is_logged_in && isset($_SESSION['user']['role']) && $_SESSION['user']['role'] === 'captain') {
+    $is_captain = true;
+    $captain_barangay_id = $_SESSION['user']['barangay_id'] ?? null;
+}
+
+// Get data from database using MySQLi based on user role
+if ($is_super_admin) {
+    // Super admin can see all data
+    $total_residents = getResidentCount();
+    $total_households = getHouseholdCount();
+    $age_distribution = getAgeDistribution();
+    $gender_distribution = getGenderDistribution();
+    $employment_status = getEmploymentStatus();
+} elseif ($is_captain && $captain_barangay_id) {
+    // Captain can only see data from their barangay
+    $total_residents = getResidentCountByBarangay($captain_barangay_id);
+    $total_households = getHouseholdCountByBarangay($captain_barangay_id);
+    $age_distribution = getAgeDistributionByBarangay($captain_barangay_id);
+    $gender_distribution = getGenderDistributionByBarangay($captain_barangay_id);
+    $employment_status = getEmploymentStatusByBarangay($captain_barangay_id);
+} else {
+    // Default data for public access or other roles
+    $total_residents = getResidentCount();
+    $total_households = getHouseholdCount();
+    $age_distribution = getAgeDistribution();
+    $gender_distribution = getGenderDistribution();
+    $employment_status = getEmploymentStatus();
+}
 
 // Prepare data for charts
 $age_labels = [];
@@ -61,12 +84,10 @@ foreach ($employment_status as $status) {
 </head>
 <body>
 <div class="dashboard-container">
+    <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <a href="index.php" class="logo-link">
-                <img src="logo.png" alt="Admin & Staff Logo" class="header-logo">
-            </a>
-            <h2>A Web-based Barangay Demographic Profiling System</h2>
+            <h2>Barangay Event And Program Planning System</h2>
             <?php if ($is_logged_in): ?>
                 <div class="welcome">
                     <p>Welcome, <?php echo htmlspecialchars($_SESSION['user']['full_name'] ?? 'User'); ?></p>
@@ -74,8 +95,7 @@ foreach ($employment_status as $status) {
                 </div>
             <?php else: ?>
                 <div class="welcome">
-                    <p> </p>
-                    <a href="login.php" class="login-btn">Staff Login</a>
+                    <a href="login.php" class="login-btn">Login</a>
                 </div>
             <?php endif; ?>
         </div>
@@ -104,6 +124,8 @@ foreach ($employment_status as $status) {
             <h2><i class="fas fa-house-user"></i> Dashboard</h2>
             <?php if ($is_super_admin): ?>
                 <span class="admin-badge"><i class="fas fa-crown"></i> Super Admin</span>
+            <?php elseif ($is_captain): ?>
+                <span class="admin-badge"><i class="fas fa-user-shield"></i> Barangay Captain</span>
             <?php endif; ?>
         </div>
         <?php if (!$is_logged_in && !$public_access): ?>
@@ -118,6 +140,8 @@ foreach ($employment_status as $status) {
                 <h4>Overview - <?php echo date('F j, Y'); ?></h4>
                 <?php if ($is_super_admin): ?>
                     <p class="admin-notice">You are viewing the system as Super Administrator</p>
+                <?php elseif ($is_captain): ?>
+                    <p class="admin-notice">You are viewing data for your barangay only</p>
                 <?php endif; ?>
             </div>
 
@@ -142,15 +166,6 @@ foreach ($employment_status as $status) {
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-                    <div class="stat-info">
-                        <h3>Upcoming Events</h3>
-                        <p><?php echo number_format($upcoming_events_count); ?></p>
-                    </div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">
                         <i class="fas fa-chart-line"></i>
                     </div>
                     <div class="stat-info">
@@ -160,9 +175,9 @@ foreach ($employment_status as $status) {
                 </div>
             </div>
 
-            <div class="dashboard-charts-grid dashboard-charts-grid-vertical">
-                <!-- Column 1: Residents by Age Group (top), Event Calendar (bottom) -->
-                <div class="card" style="grid-column: 1; grid-row: 1;">
+            <div class="dashboard-charts-grid">
+                <!-- Column 1: Residents by Age Group -->
+                <div class="card">
                     <div class="card-header">
                         <h3>Residents by Age Group</h3>
                     </div>
@@ -172,50 +187,9 @@ foreach ($employment_status as $status) {
                         </div>
                     </div>
                 </div>
-                <div class="card" style="grid-column: 1; grid-row: 2;">
-                    <div class="card-header">
-                        <h3>Event Calendar</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="calendar-month">
-                            <button class="btn-icon"><i class="fas fa-chevron-left"></i></button>
-                            <span><?php echo date('F Y'); ?></span>
-                            <button class="btn-icon"><i class="fas fa-chevron-right"></i></button>
-                        </div>
-                        <div class="calendar-days">
-                            <div class="day-header">Sun</div>
-                            <div class="day-header">Mon</div>
-                            <div class="day-header">Tue</div>
-                            <div class="day-header">Wed</div>
-                            <div class="day-header">Thu</div>
-                            <div class="day-header">Fri</div>
-                            <div class="day-header">Sat</div>
-                            <?php
-                            $first_day = date('w', strtotime(date('Y-m-01')));
-                            $days_in_month = date('t');
-                            for ($i = 0; $i < $first_day; $i++) {
-                                echo "<div class='calendar-day'></div>";
-                            }
-                            for ($i = 1; $i <= $days_in_month; $i++) {
-                                $dayClass = '';
-                                $current_date = date('Y-m') . '-' . str_pad($i, 2, '0', STR_PAD_LEFT);
-                                $stmt = $conn->prepare("SELECT COUNT(*) FROM events WHERE event_date = ?");
-                                $stmt->bind_param("s", $current_date);
-                                $stmt->execute();
-                                $stmt->bind_result($has_event);
-                                $stmt->fetch();
-                                $stmt->close();
-                                if ($has_event) {
-                                    $dayClass = 'event-day';
-                                }
-                                echo "<div class='calendar-day $dayClass'>$i</div>";
-                            }
-                            ?>
-                        </div>
-                    </div>
-                </div>
-                <!-- Column 2: Gender Distribution (top), Upcoming Events (bottom) -->
-                <div class="card" style="grid-column: 2; grid-row: 1;">
+
+                <!-- Column 2: Gender Distribution -->
+                <div class="card">
                     <div class="card-header">
                         <h3>Gender Distribution</h3>
                     </div>
@@ -225,43 +199,9 @@ foreach ($employment_status as $status) {
                         </div>
                     </div>
                 </div>
-                <div class="card" style="grid-column: 2; grid-row: 2;">
-                    <div class="card-header">
-                        <h3>Upcoming Events</h3>
-                    </div>
-                    <div class="card-body">
-                        <ul class="events-list">
-                            <?php foreach ($upcoming_events as $event): ?>
-                                <li>
-                                    <div class="event-icon">
-                                        <i class="fas fa-calendar-day"></i>
-                                    </div>
-                                    <div class="event-details">
-                                        <strong><?php echo htmlspecialchars($event['title']); ?></strong>
-                                        <span><?php echo date('M j, Y', strtotime($event['event_date'])); ?> • <?php echo htmlspecialchars($event['location']); ?></span>
-                                    </div>
-                                    <div class="event-time">
-    <?php 
-        if (!empty($event['start_time']) && $event['start_time'] !== "00:00:00") {
-            echo date('g:i A', strtotime($event['start_time']));
-        } else {
-            echo "TBA";
-        }
-    ?>
-</div>
-                                </li>
-                            <?php endforeach; ?>
-                            <?php if (empty($upcoming_events)): ?>
-                                <li class="no-events">
-                                    <i class="fas fa-calendar-times"></i>
-                                    <span>No upcoming events</span>
-                                </li>
-                            <?php endif; ?>
-                        </ul>
-                    </div>
-                </div>
-                <!-- Column 3: Employment Status (spans both rows) -->
-                <div class="card" style="grid-column: 3; grid-row: 1 / span 2;">
+
+                <!-- Column 3: Employment Status -->
+                <div class="card">
                     <div class="card-header">
                         <h3>Employment Status</h3>
                     </div>
@@ -272,11 +212,6 @@ foreach ($employment_status as $status) {
                     </div>
                 </div>
             </div>
-
-            <!-- Quick Actions card: visible to any logged-in user -->
-            <?php if ($is_logged_in): ?>
-           
-            <?php endif; ?>
         <?php endif; ?>
     </div>
 </div>
@@ -463,30 +398,6 @@ foreach ($employment_status as $status) {
         ageChart.resize();
         genderChart.resize();
         employmentChart.resize();
-    });
-
-    // Generate Report function
-    function generateReport() {
-        // Show loading state
-        const btn = event.target.closest('.action-btn');
-        const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-        btn.disabled = true;
-        
-        // Simulate report generation (replace with actual AJAX call)
-        setTimeout(() => {
-            alert('Report generated successfully!');
-            btn.innerHTML = originalHtml;
-            btn.disabled = false;
-        }, 1500);
-    }
-
-    // Calendar navigation (basic implementation)
-    document.querySelectorAll('.calendar-month button').forEach(btn => {
-        btn.addEventListener('click', function() {
-            // In a real implementation, this would fetch new month data
-            alert('Calendar navigation would load new month data here');
-        });
     });
 </script>
 </body>

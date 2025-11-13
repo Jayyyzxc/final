@@ -89,6 +89,8 @@ if (!function_exists('sanitizeInput')) {
 // ===========================
 // Data Retrieval Functions (mysqli)
 // ===========================
+
+// General Data Functions
 if (!function_exists('getResidentCount')) {
     function getResidentCount(): int {
         global $conn;
@@ -188,6 +190,139 @@ if (!function_exists('getUpcomingEvents')) {
 }
 
 // ===========================
+// Barangay-Specific Data Retrieval Functions
+// ===========================
+
+if (!function_exists('getResidentCountByBarangay')) {
+    function getResidentCountByBarangay($barangay_id): int {
+        global $conn;
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM residents WHERE barangay_id = ?");
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? (int)$result->fetch_row()[0] : 0;
+    }
+}
+
+if (!function_exists('getHouseholdCountByBarangay')) {
+    function getHouseholdCountByBarangay($barangay_id): int {
+        global $conn;
+        $stmt = $conn->prepare("SELECT COUNT(*) FROM households WHERE barangay_id = ?");
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? (int)$result->fetch_row()[0] : 0;
+    }
+}
+
+if (!function_exists('getAgeDistributionByBarangay')) {
+    function getAgeDistributionByBarangay($barangay_id): array {
+        global $conn;
+        $data = [];
+        $query = "
+            SELECT 
+                CASE 
+                    WHEN age < 18 THEN '0-17'
+                    WHEN age BETWEEN 18 AND 24 THEN '18-24'
+                    WHEN age BETWEEN 25 AND 34 THEN '25-34'
+                    WHEN age BETWEEN 35 AND 44 THEN '35-44'
+                    WHEN age BETWEEN 45 AND 59 THEN '45-59'
+                    ELSE '60+'
+                END AS age_group,
+                COUNT(*) as count
+            FROM residents
+            WHERE barangay_id = ?
+            GROUP BY age_group
+            ORDER BY age_group
+        ";
+        $stmt = $conn->prepare($query);
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        return $data;
+    }
+}
+
+if (!function_exists('getGenderDistributionByBarangay')) {
+    function getGenderDistributionByBarangay($barangay_id): array {
+        global $conn;
+        $data = [];
+        $stmt = $conn->prepare("SELECT gender, COUNT(*) as count FROM residents WHERE barangay_id = ? GROUP BY gender");
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        return $data;
+    }
+}
+
+if (!function_exists('getEmploymentStatusByBarangay')) {
+    function getEmploymentStatusByBarangay($barangay_id): array {
+        global $conn;
+        $data = [];
+        $stmt = $conn->prepare("SELECT employment_status, COUNT(*) as count FROM residents WHERE barangay_id = ? GROUP BY employment_status");
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        return $data;
+    }
+}
+
+// ===========================
+// Barangay Management Functions
+// ===========================
+
+if (!function_exists('getAllBarangays')) {
+    function getAllBarangays(): array {
+        global $conn;
+        $data = [];
+        $result = $conn->query("SELECT * FROM barangays ORDER BY name");
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $data[] = $row;
+            }
+        }
+        return $data;
+    }
+}
+
+if (!function_exists('getBarangayById')) {
+    function getBarangayById($barangay_id): ?array {
+        global $conn;
+        $stmt = $conn->prepare("SELECT * FROM barangays WHERE id = ?");
+        $stmt->bind_param("i", $barangay_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_assoc() : null;
+    }
+}
+
+if (!function_exists('getBarangayByName')) {
+    function getBarangayByName($barangay_name): ?array {
+        global $conn;
+        $stmt = $conn->prepare("SELECT * FROM barangays WHERE name = ?");
+        $stmt->bind_param("s", $barangay_name);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result ? $result->fetch_assoc() : null;
+    }
+}
+
+// ===========================
 // CSRF Protection
 // ===========================
 if (!isset($_SESSION['csrf_token'])) {
@@ -209,4 +344,11 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
     }
     throw new ErrorException($errstr, 0, $errno, $errfile, $errline);
 });
+
+// ===========================
+// Initialize Default Settings
+// ===========================
+$settings = [
+    'public_access' => 1 // Default to public access enabled
+];
 ?>
