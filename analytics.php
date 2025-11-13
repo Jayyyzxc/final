@@ -138,7 +138,7 @@ $analyticsData = getAnalyticsData($current_barangay_id, $selected_purok);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Demographic Analytics - Barangay Profiling System</title>
-     <link rel="stylesheet" href="analytics.css">
+        <link rel="stylesheet" href="analytics.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.css">
     <style>
@@ -294,6 +294,20 @@ $analyticsData = getAnalyticsData($current_barangay_id, $selected_purok);
             margin-right: 10px;
             width: 20px;
         }
+        
+        .welcome {
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .welcome a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        
+        .welcome a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -305,7 +319,6 @@ $analyticsData = getAnalyticsData($current_barangay_id, $selected_purok);
             <?php if ($is_logged_in): ?>
                 <div class="welcome">
                     <p>Welcome, <?php echo htmlspecialchars($_SESSION['user']['full_name'] ?? 'User'); ?></p>
-                    <p><small><?php echo htmlspecialchars($user_role); ?></small></p>
                     <a href="logout.php" class="logout-btn">Logout</a>
                 </div>
             <?php else: ?>
@@ -501,18 +514,18 @@ $analyticsData = getAnalyticsData($current_barangay_id, $selected_purok);
 <script>
     // Prepare data for charts
     const ageData = {
-        labels: <?php echo json_encode(array_column($analyticsData['age_distribution'], 'age_group')); ?>,
-        values: <?php echo json_encode(array_column($analyticsData['age_distribution'], 'count')); ?>
+        labels: <?php echo json_encode(array_column($analyticsData['age_distribution'] ?? [], 'age_group')); ?>,
+        values: <?php echo json_encode(array_column($analyticsData['age_distribution'] ?? [], 'count')); ?>
     };
     
     const employmentData = {
-        labels: <?php echo json_encode(array_column($analyticsData['employment_status'], 'employment_status')); ?>,
-        values: <?php echo json_encode(array_column($analyticsData['employment_status'], 'count')); ?>
+        labels: <?php echo json_encode(array_column($analyticsData['employment_status'] ?? [], 'employment_status')); ?>,
+        values: <?php echo json_encode(array_column($analyticsData['employment_status'] ?? [], 'count')); ?>
     };
     
     const genderData = {
-        labels: <?php echo json_encode(array_column($analyticsData['gender_ratio'], 'gender')); ?>,
-        values: <?php echo json_encode(array_column($analyticsData['gender_ratio'], 'count')); ?>
+        labels: <?php echo json_encode(array_column($analyticsData['gender_ratio'] ?? [], 'gender')); ?>,
+        values: <?php echo json_encode(array_column($analyticsData['gender_ratio'] ?? [], 'count')); ?>
     };
     
     // Colors
